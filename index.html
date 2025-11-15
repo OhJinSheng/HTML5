@@ -38,7 +38,7 @@
         }
         
         #equilibrium-row::before {
-            content: "Equilibrium Positions";
+            content: "Equilibrium Positions (x)";
             position: absolute;
             left: -150px;
             top: 50%;
@@ -96,7 +96,7 @@
         }
         
         .graph-container::before {
-            content: "Displacement Graph";
+            content: "Displacement Graph (y)";
             position: absolute;
             left: -150px;
             top: 50%;
@@ -174,8 +174,10 @@
             const directionBtn = document.getElementById('direction-btn');
 
             // --- Simulation Parameters ---
-            const NUM_PARTICLES = 40;
-            const AMPLITUDE = 60; // Max displacement in pixels
+            // CORRECTED: Reduced to 20 particles for wider spacing.
+            const NUM_PARTICLES = 20; 
+            // CORRECTED: Reduced to 12px to prevent particle overlap.
+            const AMPLITUDE = 12; 
             const WAVELENGTH = 300; // Wavelength in pixels
             const WAVE_SPEED = 0.05; // Angular frequency (controls speed)
             const MAX_SELECTED = 6;
@@ -198,252 +200,4 @@
             let simulationTime = 0;
             let isPlaying = false;
             let animationFrameId = null;
-            let waveDirection = 1; // 1 for L-to-R, -1 for R-to-L
-            let canvasWidth, canvasHeight, graphCenterY;
-
-            // --- Wave Constants ---
-            // A < lambda / (2*PI) to prevent overlap. 60 < 300 / (2*PI) -> 60 < 47.7 (FALSE)
-            // Let's adjust Amplitude to be safe.
-            const SAFE_AMPLITUDE = 40; // 40 < 47.7 (TRUE)
-            const K = (2 * Math.PI) / WAVELENGTH; // Wavenumber
-
-            /**
-             * Resizes canvas to match its display size.
-             */
-            function resizeCanvas() {
-                canvasWidth = canvas.clientWidth;
-                canvasHeight = canvas.clientHeight;
-                canvas.width = canvasWidth;
-                canvas.height = canvasHeight;
-                graphCenterY = canvasHeight / 2;
-            }
-
-            /**
-             * Calculates displacement for a particle at equilibrium position x at time t.
-             */
-            function getDisplacement(x, t) {
-                return SAFE_AMPLITUDE * Math.sin(K * x - waveDirection * WAVE_SPEED * t);
-            }
-
-            /**
-             * Initializes the simulation.
-             */
-            function init() {
-                resizeCanvas();
-                particles = [];
-                eqParticleDOMs = [];
-                movingParticleDOMs = [];
-                selectedParticleIds.clear();
-                simulationTime = 0;
-                isPlaying = false;
-                playPauseBtn.textContent = 'Play';
-                
-                eqRow.innerHTML = '';
-                waveRow.innerHTML = '';
-
-                const particleSpacing = canvasWidth / (NUM_PARTICLES + 1);
-
-                for (let i = 0; i < NUM_PARTICLES; i++) {
-                    const id = i;
-                    const equilibriumX = particleSpacing * (i + 1);
-
-                    // Create particle data object
-                    particles.push({
-                        id: id,
-                        equilibriumX: equilibriumX,
-                        currentX: equilibriumX,
-                        displacement: 0,
-                        color: null
-                    });
-
-                    // Create equilibrium particle DOM element
-                    const eqParticle = document.createElement('div');
-                    eqParticle.className = 'particle equilibrium-particle';
-                    eqParticle.style.left = `${equilibriumX}px`;
-                    eqParticle.dataset.id = id;
-                    eqParticle.addEventListener('click', () => toggleSelectParticle(id));
-                    eqRow.appendChild(eqParticle);
-                    eqParticleDOMs.push(eqParticle);
-
-                    // Create moving particle DOM element
-                    const movingParticle = document.createElement('div');
-                    movingParticle.className = 'particle moving-particle';
-                    movingParticle.style.left = `${equilibriumX}px`;
-                    waveRow.appendChild(movingParticle);
-                    movingParticleDOMs.push(movingParticle);
-                }
-                
-                update();
-                draw();
-            }
-
-            /**
-             * Handles selection/deselection of a particle.
-             */
-            function toggleSelectParticle(id) {
-                const eqParticle = eqParticleDOMs[id];
-                const movingParticle = movingParticleDOMs[id];
-                const particleData = particles[id];
-
-                if (selectedParticleIds.has(id)) {
-                    // Deselect
-                    selectedParticleIds.delete(id);
-                    particleData.color = null;
-                    eqParticle.style.backgroundColor = '#455a64';
-                    movingParticle.style.backgroundColor = '#1e88e5';
-                } else if (selectedParticleIds.size < MAX_SELECTED) {
-                    // Select
-                    selectedParticleIds.add(id);
-                    // Find the first available color
-                    const usedColors = Array.from(selectedParticleIds).map(pid => particles[pid].color);
-                    const color = SELECTION_COLORS.find(c => !usedColors.includes(c));
-                    
-                    particleData.color = color;
-                    eqParticle.style.backgroundColor = color;
-                    movingParticle.style.backgroundColor = color;
-                }
-                
-                // Redraw to update bars
-                if (!isPlaying) {
-                    draw();
-                }
-            }
-
-            /**
-             * Updates the state of all particles.
-             */
-            function update() {
-                for (let i = 0; i < NUM_PARTICLES; i++) {
-                    const p = particles[i];
-                    p.displacement = getDisplacement(p.equilibriumX, simulationTime);
-                    p.currentX = p.equilibriumX + p.displacement;
-                    
-                    // Update moving particle DOM
-                    movingParticleDOMs[i].style.transform = `translate(${p.displacement - 8}px, -50%)`;
-                }
-            }
-
-            /**
-             * Draws the graph and selection bars on the canvas.
-             */
-            function draw() {
-                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-                // 1. Draw equilibrium line (x-axis)
-                ctx.beginPath();
-                ctx.moveTo(0, graphCenterY);
-                ctx.lineTo(canvasWidth, graphCenterY);
-                ctx.strokeStyle = '#546e7a';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                // 2. Draw the displacement graph
-                ctx.beginPath();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#1e88e5';
-                for (let x = 0; x <= canvasWidth; x++) {
-                    const displacement = getDisplacement(x, simulationTime);
-                    const y = graphCenterY - displacement; // y=0 is top, so subtract
-                    if (x === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-                }
-                ctx.stroke();
-                
-                // 3. Draw bars for selected particles
-                selectedParticleIds.forEach(id => {
-                    const p = particles[id];
-                    ctx.fillStyle = p.color;
-                    ctx.strokeStyle = p.color;
-                    ctx.lineWidth = 3;
-                    
-                    const barTopY = graphCenterY - p.displacement;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(p.equilibriumX, graphCenterY);
-                    ctx.lineTo(p.equilibriumX, barTopY);
-                    ctx.stroke();
-                });
-            }
-
-            /**
-             * The main animation loop.
-             */
-            function loop() {
-                if (!isPlaying) return;
-                
-                simulationTime++;
-                update();
-                draw();
-                
-                animationFrameId = requestAnimationFrame(loop);
-            }
-
-            /**
-             * Toggles the play/pause state of the simulation.
-             */
-            function togglePlayPause() {
-                isPlaying = !isPlaying;
-                if (isPlaying) {
-                    playPauseBtn.textContent = 'Pause';
-                    loop();
-                } else {
-                    playPauseBtn.textContent = 'Play';
-                    cancelAnimationFrame(animationFrameId);
-                }
-            }
-
-            /**
-             * Advances the simulation by one step.
-             */
-            function step() {
-                if (isPlaying) {
-                    togglePlayPause();
-                }
-                simulationTime += 5; // A noticeable step
-                update();
-                draw();
-            }
-
-            /**
-* Resets the entire simulation.
-*/
-            function reset() {
-                if (isPlaying) {
-                    togglePlayPause(); // This also cancels the animation frame
-                }
-                init(); // Re-initialize everything
-            }
-
-            /**
-             * Changes the direction of wave propagation.
-             */
-            function toggleDirection() {
-                waveDirection *= -1;
-                directionBtn.textContent = waveDirection === 1 ? 'Direction: L-to-R' : 'Direction: R-to-L';
-                if (!isPlaying) {
-                    update();
-                    draw();
-                }
-            }
-
-            // --- Event Listeners ---
-            playPauseBtn.addEventListener('click', togglePlayPause);
-            stepBtn.addEventListener('click', step);
-            resetBtn.addEventListener('click', reset);
-            directionBtn.addEventListener('click', toggleDirection);
-            window.addEventListener('resize', () => {
-                // Handle resize: stop animation, re-init, and draw
-                if(isPlaying) togglePlayPause();
-                init();
-            });
-
-            // --- Start ---
-            init();
-        });
-    </script>
-
-</body>
-</html>
+            let waveDirection = 1; // 1 for L-to-R,
