@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Longitudinal Wave Simulation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: #f0f3f5;
+            color: #333;
+            margin-top: 20px;
+        }
+
+        .simulation-container {
+            width: 800px;
+            border: 1px solid #b0bec5;
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 20px;
+        }
+
+        .particle-row {
+            position: relative;
+            height: 40px;
+            width: 100%;
+            border-bottom: 1px dashed #90a4ae;
+        }
+
+        #equilibrium-row {
+            border-bottom: 1px solid #78909c;
+            margin-bottom: 20px;
+        }
+        
+        #equilibrium-row::before {
+            content: "Equilibrium Positions (x)";
+            position: absolute;
+            left: -150px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.9em;
+            color: #546e7a;
+            width: 140px;
+            text-align: right;
+        }
+
+        #wave-row::before {
+            content: "Moving Particles";
+            position: absolute;
+            left: -150px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.9em;
+            color: #546e7a;
+            width: 140px;
+            text-align: right;
+        }
+
+        .particle {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            transition: background-color 0.2s;
+        }
+
+        .equilibrium-particle {
+            background-color: #455a64;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .equilibrium-particle:hover {
+            background-color: #607d8b;
+        }
+
+        .moving-particle {
+            background-color: #1e88e5;
+            z-index: 5;
+            width: 14px;
+            height: 14px;
+        }
+
+        .graph-container {
+            width: 100%;
+            height: 200px;
+            margin-top: 20px;
+            position: relative;
+        }
+        
+        .graph-container::before {
+            content: "Displacement Graph (y)";
+            position: absolute;
+            left: -150px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.9em;
+            color: #546e7a;
+            width: 140px;
+            text-align: right;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #eceff1;
+            border-radius: 4px;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .controls button {
+            font-size: 1em;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background-color: #0277bd;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .controls button:hover {
+            background-color: #039be5;
+        }
+        
+        .controls button:active {
+            background-color: #01579b;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="simulation-container">
+        <div id="equilibrium-row" class="particle-row"></div>
+        
+        <div id="wave-row" class="particle-row"></div>
+
+        <div class="graph-container">
+            <canvas id="wave-graph"></canvas>
+        </div>
+
+        <div class="controls">
+            <button id="play-pause-btn">Play</button>
+            <button id="step-btn">Step</button>
+            <button id="reset-btn">Reset</button>
+            <button id="direction-btn">Direction: L-to-R</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- DOM Elements ---
+            const eqRow = document.getElementById('equilibrium-row');
+            const waveRow = document.getElementById('wave-row');
+            const canvas = document.getElementById('wave-graph');
+            const ctx = canvas.getContext('2d');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const stepBtn = document.getElementById('step-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const directionBtn = document.getElementById('direction-btn');
+
+            // --- Simulation Parameters ---
+            // CORRECTED: Reduced to 20 particles for wider spacing.
+            const NUM_PARTICLES = 20; 
+            // CORRECTED: Reduced to 12px to prevent particle overlap.
+            const AMPLITUDE = 12; 
+            const WAVELENGTH = 300; // Wavelength in pixels
+            const WAVE_SPEED = 0.05; // Angular frequency (controls speed)
+            const MAX_SELECTED = 6;
+            
+            // Selection colors
+            const SELECTION_COLORS = [
+                '#e53935', // red
+                '#39b54a', // green
+                '#f57c00', // orange
+                '#9c27b0', // purple
+                '#03a9f4', // light blue
+                '#fbc02d'  // yellow
+            ];
+
+            // --- State Variables ---
+            let particles = [];
+            let eqParticleDOMs = [];
+            let movingParticleDOMs = [];
+            let selectedParticleIds = new Set();
+            let simulationTime = 0;
+            let isPlaying = false;
+            let animationFrameId = null;
+            let waveDirection = 1; // 1 for L-to-R,
